@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Activity, Bookmark, Compass, Map, Plus } from 'lucide-react-native';
+import { Activity, Bookmark, Compass, Map, Orbit, Plus } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -50,6 +50,14 @@ export default function TabLayout() {
         options={{
           tabBarIcon: ({ color, focused }) => (
             <TabIcon color={color} focused={focused} Icon={Map} label="Map" />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="immerse"
+        options={{
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon color={color} focused={focused} Icon={Orbit} label="Walk" />
           ),
         }}
       />

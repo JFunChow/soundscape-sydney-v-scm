@@ -1,6 +1,7 @@
+import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Crosshair, ExternalLink, MapPin, Navigation, X } from 'lucide-react-native';
+import { Crosshair, ExternalLink, MapPin, Navigation, Navigation2, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,11 +9,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
 import {
   categoryColors,
-  getAverageSoundLevel,
   getSoundLevelLabel,
   liveInfoById,
   SoundCategory,
   soundCategories,
+  SoundSpot,
   soundSpots,
 } from '@/data/sound-spots';
 
@@ -34,14 +35,12 @@ const SYDNEY_REGION = {
   longitudeDelta: 0.08,
 };
 
-// Neon cyberpunk inspired Sydney map — horizontal text only, minimal.
 const mapStyle = [
   { elementType: 'geometry', stylers: [{ color: '#05060F' }] },
   { elementType: 'labels', stylers: [{ visibility: 'off' }] },
   { elementType: 'labels.text', stylers: [{ visibility: 'off' }] },
   { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
   { featureType: 'administrative', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ visibility: 'off' }] },
   { featureType: 'poi', stylers: [{ visibility: 'off' }] },
   { featureType: 'transit', stylers: [{ visibility: 'off' }] },
   { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
@@ -54,7 +53,22 @@ const mapStyle = [
   { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#0B0820' }] },
 ];
 
-function NeonMarker({ color, size = 12 }: { color: string; size?: number }) {
+function haversine(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }): number {
+  const R = 6371;
+  const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+  const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+  const lat1 = (a.latitude * Math.PI) / 180;
+  const lat2 = (b.latitude * Math.PI) / 180;
+  const x = Math.sin(dLat / 2) ** 2 + Math.sin(dLon / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+function formatDistance(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)} m`;
+  return `${km.toFixed(1)} km`;
+}
+
+function NeonMarker({ color, size = 12, focused }: { color: string; size?: number; focused?: boolean }) {
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(
@@ -86,7 +100,15 @@ function NeonMarker({ color, size = 12 }: { color: string; size?: number }) {
       <View
         style={[
           styles.markerDot,
-          { width: size, height: size, borderRadius: size / 2, backgroundColor: color, shadowColor: color },
+          {
+            width: focused ? size * 1.5 : size,
+            height: focused ? size * 1.5 : size,
+            borderRadius: (focused ? size * 1.5 : size) / 2,
+            backgroundColor: color,
+            shadowColor: color,
+            borderWidth: focused ? 2 : 0,
+            borderColor: Colors.white,
+          },
         ]}
       />
     </View>
@@ -98,21 +120,85 @@ export default function MapScreen() {
   const mapRef = useRef<MapView>(null);
   const [selectedCategory, setSelectedCategory] = useState<SoundCategory | 'All'>('All');
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const filteredSpots = useMemo(() => {
     if (selectedCategory === 'All') return soundSpots;
     return soundSpots.filter((s) => s.category === selectedCategory);
   }, [selectedCategory]);
 
+  const nearbySpots = useMemo(() => {
+    if (!userLocation) return [] as (SoundSpot & { distance: number })[];
+    return soundSpots
+      .map((s) => ({ ...s, distance: haversine(userLocation, s.coordinates) }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 3);
+  }, [userLocation]);
+
+  const requestLocation = useCallback(async () => {
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof navigator !== 'undefined' && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+            },
+            (err) => {
+              console.log('[map] web geo error', err);
+              setLocationError('Location unavailable');
+            }
+          );
+        }
+        return;
+      }
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationError('Location permission denied');
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setUserLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+    } catch (e) {
+      console.log('[map] location error', e);
+      setLocationError('Location unavailable');
+    }
+  }, []);
+
+  useEffect(() => {
+    void requestLocation();
+  }, [requestLocation]);
+
   const centerOnSydney = useCallback(() => {
     mapRef.current?.animateToRegion(SYDNEY_REGION, 600);
   }, []);
+
+  const centerOnUser = useCallback(() => {
+    if (userLocation) {
+      mapRef.current?.animateToRegion(
+        { ...userLocation, latitudeDelta: 0.04, longitudeDelta: 0.04 },
+        600
+      );
+    } else {
+      void requestLocation();
+    }
+  }, [userLocation, requestLocation]);
 
   const selectedSpot = useMemo(() => soundSpots.find((s) => s.id === selectedSpotId), [selectedSpotId]);
 
   const openInGoogleMaps = useCallback((lat: number, lng: number) => {
     const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
     void Linking.openURL(url);
+  }, []);
+
+  const navigateTo = useCallback((spot: SoundSpot) => {
+    const { latitude, longitude } = spot.coordinates;
+    const url = Platform.select({
+      ios: `maps://app?daddr=${latitude},${longitude}`,
+      android: `google.navigation:q=${latitude},${longitude}`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`,
+    });
+    if (url) void Linking.openURL(url);
   }, []);
 
   const cardAnim = useRef(new Animated.Value(0)).current;
@@ -134,11 +220,20 @@ export default function MapScreen() {
         <View style={styles.headerLeft}>
           <Text style={styles.headerBrand}>SOUNDSCAPE</Text>
           <View style={styles.brandUnderline} />
-          <Text style={styles.headerCoord}>33.8688° S · 151.2093° E</Text>
+          <Text style={styles.headerCoord} numberOfLines={1}>
+            {userLocation
+              ? `${userLocation.latitude.toFixed(4)}°  ${userLocation.longitude.toFixed(4)}°`
+              : '33.8688° S · 151.2093° E'}
+          </Text>
         </View>
-        <Pressable onPress={centerOnSydney} style={styles.centerBtn} testID="center-button">
-          <Crosshair color={Colors.cyan} size={16} />
-        </Pressable>
+        <View style={styles.headerBtns}>
+          <Pressable onPress={centerOnUser} style={styles.centerBtn} testID="locate-me-button">
+            <Navigation2 color={Colors.cyan} size={15} />
+          </Pressable>
+          <Pressable onPress={centerOnSydney} style={styles.centerBtn} testID="center-button">
+            <Crosshair color={Colors.cyan} size={15} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
@@ -151,10 +246,8 @@ export default function MapScreen() {
               onPress={() => setSelectedCategory(cat)}
               style={[styles.filterChip, active && { borderColor: color, backgroundColor: `${color}18` }]}
             >
-              {cat !== 'All' ? (
-                <View style={[styles.filterDot, { backgroundColor: color }]} />
-              ) : null}
-              <Text style={[styles.filterText, active && { color }]}>{cat}</Text>
+              {cat !== 'All' ? <View style={[styles.filterDot, { backgroundColor: color }]} /> : null}
+              <Text style={[styles.filterText, active && { color }]} numberOfLines={1}>{cat}</Text>
             </Pressable>
           );
         })}
@@ -162,13 +255,41 @@ export default function MapScreen() {
     </View>
   );
 
+  const renderNearby = () => {
+    if (selectedSpot) return null;
+    if (nearbySpots.length === 0) return null;
+    return (
+      <View style={[styles.nearbyWrap, { bottom: 110 + insets.bottom }]} pointerEvents="box-none">
+        <Text style={styles.nearbyLabel}>NEARBY SOUNDSCAPES</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.nearbyList}>
+          {nearbySpots.map((spot) => {
+            const color = categoryColors[spot.category];
+            return (
+              <Pressable
+                key={spot.id}
+                onPress={() => router.push(`/spots/${spot.id}`)}
+                style={styles.nearbyCard}
+                testID={`nearby-${spot.id}`}
+              >
+                <View style={[styles.nearbyDot, { backgroundColor: color, shadowColor: color }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.nearbyName} numberOfLines={1}>{spot.name}</Text>
+                  <Text style={styles.nearbyMeta} numberOfLines={1}>
+                    {formatDistance(spot.distance)} · {spot.category}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
+  };
+
   if (Platform.OS === 'web') {
     return (
       <View style={styles.screen}>
-        <LinearGradient
-          colors={['#050812', '#0E0B28', '#1B0B2E']}
-          style={StyleSheet.absoluteFill}
-        />
+        <LinearGradient colors={['#050812', '#0E0B28', '#1B0B2E']} style={StyleSheet.absoluteFill} />
         {renderHeader()}
         <ScrollView
           style={styles.webScroll}
@@ -176,7 +297,9 @@ export default function MapScreen() {
         >
           <View style={styles.webMapHint}>
             <Text style={styles.webHintTitle}>Interactive map</Text>
-            <Text style={styles.webHintText}>Open on iOS or Android to view the live neon map. Tap any spot below to explore.</Text>
+            <Text style={styles.webHintText}>
+              Open on iOS or Android to view the live neon map and use real-time location. Tap any spot below to explore.
+            </Text>
           </View>
           {filteredSpots.map((spot) => (
             <Pressable
@@ -186,8 +309,8 @@ export default function MapScreen() {
             >
               <View style={[styles.webRowDot, { backgroundColor: categoryColors[spot.category], shadowColor: categoryColors[spot.category] }]} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.webRowTitle}>{spot.name}</Text>
-                <Text style={styles.webRowSub}>{spot.category} · {getSoundLevelLabel(spot)}</Text>
+                <Text style={styles.webRowTitle} numberOfLines={2}>{spot.name}</Text>
+                <Text style={styles.webRowSub} numberOfLines={1}>{spot.category} · {getSoundLevelLabel(spot)}</Text>
               </View>
               <Pressable
                 onPress={(e) => {
@@ -227,16 +350,23 @@ export default function MapScreen() {
           <Marker
             key={spot.id}
             coordinate={spot.coordinates}
-            onPress={() => setSelectedSpotId(spot.id)}
+            onPress={() => {
+              console.log('[map] marker tap', spot.id);
+              setSelectedSpotId(spot.id);
+            }}
             tracksViewChanges={false}
             anchor={{ x: 0.5, y: 0.5 }}
+            testID={`marker-${spot.id}`}
           >
-            <NeonMarker color={categoryColors[spot.category]} size={selectedSpotId === spot.id ? 16 : 10} />
+            <NeonMarker
+              color={categoryColors[spot.category]}
+              size={selectedSpotId === spot.id ? 14 : 10}
+              focused={selectedSpotId === spot.id}
+            />
           </Marker>
         ))}
       </MapView>
 
-      {/* top vignette */}
       <LinearGradient
         colors={['rgba(5,8,18,0.92)', 'rgba(5,8,18,0.6)', 'rgba(5,8,18,0)']}
         style={[styles.topVignette, { height: insets.top + 180 }]}
@@ -245,12 +375,13 @@ export default function MapScreen() {
 
       {renderHeader()}
 
-      {/* bottom vignette */}
       <LinearGradient
         colors={['rgba(5,8,18,0)', 'rgba(5,8,18,0.85)']}
-        style={[styles.bottomVignette, { height: 180 + insets.bottom }]}
+        style={[styles.bottomVignette, { height: 220 + insets.bottom }]}
         pointerEvents="none"
       />
+
+      {renderNearby()}
 
       {selectedSpot ? (
         <Animated.View
@@ -284,7 +415,11 @@ export default function MapScreen() {
                     {selectedSpot.category.toUpperCase()}
                   </Text>
                 </View>
-                <Text style={styles.feelingText}>{getSoundLevelLabel(selectedSpot)}</Text>
+                <Text style={styles.feelingText}>
+                  {userLocation
+                    ? formatDistance(haversine(userLocation, selectedSpot.coordinates))
+                    : getSoundLevelLabel(selectedSpot)}
+                </Text>
               </View>
 
               <Text style={styles.floatTitle} numberOfLines={2}>{selectedSpot.name}</Text>
@@ -294,70 +429,44 @@ export default function MapScreen() {
               ) : null}
 
               <View style={styles.floatFooter}>
-                <Text style={styles.floatCTA}>Open details</Text>
-                <Navigation color={Colors.cyan} size={16} />
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    navigateTo(selectedSpot);
+                  }}
+                  style={styles.floatNavBtn}
+                  hitSlop={8}
+                >
+                  <Navigation color={Colors.cyan} size={13} />
+                  <Text style={styles.floatNavText}>NAVIGATE</Text>
+                </Pressable>
+                <Text style={styles.floatCTA}>OPEN DETAILS →</Text>
               </View>
             </LinearGradient>
           </Pressable>
         </Animated.View>
+      ) : null}
+
+      {locationError ? (
+        <View style={[styles.errorBanner, { top: insets.top + 150 }]} pointerEvents="none">
+          <Text style={styles.errorText}>{locationError}</Text>
+        </View>
       ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#050812',
-  },
-  topVignette: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-  bottomVignette: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 22,
-    paddingBottom: 10,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  headerLeft: {
-    gap: 6,
-  },
-  headerBrand: {
-    color: Colors.cyan,
-    fontSize: 18,
-    fontWeight: '900' as const,
-    letterSpacing: 4,
-  },
-  brandUnderline: {
-    width: 38,
-    height: 1.5,
-    backgroundColor: Colors.cyan,
-    opacity: 0.7,
-  },
-  headerCoord: {
-    color: Colors.mist,
-    fontSize: 10,
-    fontWeight: '600' as const,
-    letterSpacing: 1.5,
-    marginTop: 2,
-  },
+  screen: { flex: 1, backgroundColor: '#050812' },
+  topVignette: { position: 'absolute', top: 0, left: 0, right: 0 },
+  bottomVignette: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  header: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 22, paddingBottom: 10 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 },
+  headerLeft: { gap: 6, flex: 1, paddingRight: 10 },
+  headerBrand: { color: Colors.cyan, fontSize: 18, fontWeight: '900' as const, letterSpacing: 4 },
+  brandUnderline: { width: 38, height: 1.5, backgroundColor: Colors.cyan, opacity: 0.7 },
+  headerCoord: { color: Colors.mist, fontSize: 10, fontWeight: '600' as const, letterSpacing: 1.5, marginTop: 2 },
+  headerBtns: { flexDirection: 'row', gap: 8 },
   centerBtn: {
     width: 38,
     height: 38,
@@ -368,10 +477,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(47,255,224,0.3)',
   },
-  filterRow: {
-    gap: 8,
-    paddingRight: 20,
-  },
+  filterRow: { gap: 8, paddingRight: 20 },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -383,42 +489,39 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
     backgroundColor: 'rgba(10,13,28,0.6)',
   },
-  filterDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  filterDot: { width: 6, height: 6, borderRadius: 3 },
+  filterText: { color: Colors.cloud, fontSize: 12, fontWeight: '700' as const, letterSpacing: 0.5 },
+  markerBox: { alignItems: 'center', justifyContent: 'center', width: 44, height: 44 },
+  markerRing: { position: 'absolute', borderWidth: 1.5 },
+  markerDot: { shadowOpacity: 1, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
+  nearbyWrap: { position: 'absolute', left: 0, right: 0 },
+  nearbyLabel: {
+    color: Colors.mist,
+    fontSize: 10,
+    fontWeight: '900' as const,
+    letterSpacing: 2,
+    paddingHorizontal: 22,
+    marginBottom: 10,
   },
-  filterText: {
-    color: Colors.cloud,
-    fontSize: 12,
-    fontWeight: '700' as const,
-    letterSpacing: 0.5,
-  },
-  markerBox: {
+  nearbyList: { paddingHorizontal: 18, gap: 10 },
+  nearbyCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    width: 40,
-    height: 40,
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(5,8,18,0.85)',
+    minWidth: 200,
+    maxWidth: 260,
   },
-  markerRing: {
-    position: 'absolute',
-    borderWidth: 1.5,
-  },
-  markerDot: {
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 8,
-  },
-  floatCard: {
-    position: 'absolute',
-    left: 18,
-    right: 18,
-  },
-  floatCardInner: {
-    borderRadius: 24,
-    overflow: 'hidden',
-  },
+  nearbyDot: { width: 8, height: 8, borderRadius: 4, shadowOpacity: 1, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } },
+  nearbyName: { color: Colors.white, fontSize: 13, fontWeight: '800' as const },
+  nearbyMeta: { color: Colors.mist, fontSize: 10, fontWeight: '600' as const, letterSpacing: 0.8, marginTop: 2 },
+  floatCard: { position: 'absolute', left: 18, right: 18 },
+  floatCardInner: { borderRadius: 24, overflow: 'hidden' },
   floatGlass: {
     padding: 18,
     borderRadius: 24,
@@ -465,55 +568,43 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
   },
-  catTagDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-  },
-  catTagText: {
-    fontSize: 10,
-    fontWeight: '800' as const,
-    letterSpacing: 1,
-  },
-  feelingText: {
-    color: Colors.mist,
-    fontSize: 11,
-    fontWeight: '700' as const,
-    letterSpacing: 1,
-    textTransform: 'uppercase' as const,
-  },
-  floatTitle: {
-    color: Colors.white,
-    fontSize: 22,
-    fontWeight: '900' as const,
-    lineHeight: 26,
-    marginBottom: 6,
-  },
-  floatTip: {
-    color: Colors.cloud,
-    fontSize: 12,
-    lineHeight: 17,
-    opacity: 0.8,
-    marginBottom: 12,
-  },
+  catTagDot: { width: 5, height: 5, borderRadius: 2.5 },
+  catTagText: { fontSize: 10, fontWeight: '800' as const, letterSpacing: 1 },
+  feelingText: { color: Colors.mist, fontSize: 11, fontWeight: '700' as const, letterSpacing: 1, textTransform: 'uppercase' as const },
+  floatTitle: { color: Colors.white, fontSize: 22, fontWeight: '900' as const, lineHeight: 26, marginBottom: 6 },
+  floatTip: { color: Colors.cloud, fontSize: 12, lineHeight: 17, opacity: 0.8, marginBottom: 12 },
   floatFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 4,
   },
-  floatCTA: {
-    color: Colors.cyan,
-    fontSize: 12,
-    fontWeight: '800' as const,
-    letterSpacing: 1.5,
+  floatNavBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(47,255,224,0.3)',
+    backgroundColor: 'rgba(47,255,224,0.08)',
   },
+  floatNavText: { color: Colors.cyan, fontSize: 10, fontWeight: '900' as const, letterSpacing: 1.5 },
+  floatCTA: { color: Colors.cyan, fontSize: 11, fontWeight: '800' as const, letterSpacing: 1.5 },
+  errorBanner: {
+    position: 'absolute',
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,209,102,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,209,102,0.4)',
+  },
+  errorText: { color: Colors.gold, fontSize: 11, fontWeight: '700' as const },
   webScroll: { flex: 1 },
-  webScrollContent: {
-    paddingHorizontal: 18,
-    paddingBottom: 140,
-    gap: 8,
-  },
+  webScrollContent: { paddingHorizontal: 18, paddingBottom: 140, gap: 8 },
   webMapHint: {
     padding: 18,
     borderRadius: 20,
@@ -522,18 +613,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.1)',
     marginBottom: 14,
   },
-  webHintTitle: {
-    color: Colors.cyan,
-    fontSize: 12,
-    fontWeight: '800' as const,
-    letterSpacing: 2,
-    marginBottom: 6,
-  },
-  webHintText: {
-    color: Colors.cloud,
-    fontSize: 13,
-    lineHeight: 19,
-  },
+  webHintTitle: { color: Colors.cyan, fontSize: 12, fontWeight: '800' as const, letterSpacing: 2, marginBottom: 6 },
+  webHintText: { color: Colors.cloud, fontSize: 13, lineHeight: 19 },
   webRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -551,20 +632,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 },
   },
-  webRowTitle: {
-    color: Colors.white,
-    fontSize: 15,
-    fontWeight: '700' as const,
-  },
-  webRowSub: {
-    color: Colors.mist,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  webRowLink: {
-    padding: 8,
-  },
-  // placeholders for unused previous styles referenced nowhere now removed
-  markerOuter: { width: 0, height: 0 },
-  markerInner: { width: 0, height: 0 },
+  webRowTitle: { color: Colors.white, fontSize: 15, fontWeight: '700' as const },
+  webRowSub: { color: Colors.mist, fontSize: 12, marginTop: 2 },
+  webRowLink: { padding: 8 },
 });

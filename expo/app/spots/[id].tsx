@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Clock, ExternalLink, Globe, Heart, Lightbulb, MapPin, Share2, Volume2 } from 'lucide-react-native';
+import { ArrowLeft, Clock, ExternalLink, Feather, Globe, Heart, Lightbulb, MapPin, Share2, Sparkles, Users, Volume2 } from 'lucide-react-native';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Dimensions, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ import {
   parseSoundLevel,
   soundSpots,
 } from '@/data/sound-spots';
+import { enrichmentById } from '@/data/enrichment';
 import { useFavorites } from '@/providers/favorites-provider';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -39,7 +40,9 @@ export default function SpotDetailScreen() {
   const minLevel = parseSoundLevel(spot.soundLevelMin);
   const maxLevel = parseSoundLevel(spot.soundLevelMax);
   const live = liveInfoById[spot.id];
+  const enrichment = enrichmentById[spot.id];
   const categoryColor = categoryColors[spot.category];
+  const heroImageUrl = spot.imageUrl || enrichment?.backupImageUrl || '';
 
   // cinematic entrance
   const entrance = useRef(new Animated.Value(0)).current;
@@ -126,8 +129,8 @@ export default function SpotDetailScreen() {
               { transform: [{ scale: heroScale }, { translateY: heroTranslate }] },
             ]}
           >
-            {spot.imageUrl ? (
-              <Image source={{ uri: spot.imageUrl }} style={styles.heroImage} contentFit="cover" />
+            {heroImageUrl ? (
+              <Image source={{ uri: heroImageUrl }} style={styles.heroImage} contentFit="cover" />
             ) : (
               <View style={[styles.heroImage, { backgroundColor: placeholderBg, alignItems: 'center', justifyContent: 'center' }]}>
                 <MapPin color={categoryColor} size={56} />
@@ -311,12 +314,96 @@ export default function SpotDetailScreen() {
             </View>
           ) : null}
 
-          {/* HISTORY */}
-          {spot.history ? (
+          {/* SOUND INTERPRETATION */}
+          {enrichment?.soundInterpretation ? (
             <View style={styles.sectionBlock}>
               <View style={styles.sectionRow}>
                 <Text style={styles.sectionNum}>04</Text>
-                <Text style={styles.sectionLabel}>ORIGIN</Text>
+                <Text style={styles.sectionLabel}>WHAT YOU HEAR</Text>
+                <View style={styles.sectionLine} />
+              </View>
+              <View style={[styles.accentCard, { borderColor: `${categoryColor}55` }]}>
+                <Volume2 color={categoryColor} size={14} />
+                <Text style={[styles.accentText, { color: Colors.cloud }]}>{enrichment.soundInterpretation}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {/* ABORIGINAL CONTEXT */}
+          {enrichment ? (
+            <View style={styles.sectionBlock}>
+              <View style={styles.sectionRow}>
+                <Text style={styles.sectionNum}>05</Text>
+                <Text style={styles.sectionLabel}>COUNTRY</Text>
+                <View style={styles.sectionLine} />
+              </View>
+              <View style={styles.countryCard}>
+                <View style={styles.countryHeader}>
+                  <Users color={Colors.gold} size={14} />
+                  <Text style={styles.countryCustodians}>{enrichment.custodians}</Text>
+                </View>
+                {enrichment.indigenousName ? (
+                  <View style={styles.indigenousRow}>
+                    <Text style={styles.indigenousLabel}>TRADITIONAL NAME</Text>
+                    <Text style={styles.indigenousValue}>{enrichment.indigenousName}</Text>
+                  </View>
+                ) : null}
+                <Text style={styles.bodyText}>{enrichment.culturalSignificance}</Text>
+                <Text style={styles.acknowledgement}>
+                  We acknowledge the Traditional Custodians of Country throughout Sydney and pay respect to Elders past, present and emerging.
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          {/* TIMELINE */}
+          {enrichment && enrichment.historyTimeline.length > 0 ? (
+            <View style={styles.sectionBlock}>
+              <View style={styles.sectionRow}>
+                <Text style={styles.sectionNum}>06</Text>
+                <Text style={styles.sectionLabel}>TIMELINE</Text>
+                <View style={styles.sectionLine} />
+              </View>
+              <View style={styles.timeline}>
+                {enrichment.historyTimeline.map((t, i) => (
+                  <View key={`tl-${i}`} style={styles.timelineRow}>
+                    <View style={styles.timelineLeft}>
+                      <View style={[styles.timelineDot, { backgroundColor: categoryColor, shadowColor: categoryColor }]} />
+                      {i < enrichment.historyTimeline.length - 1 ? (
+                        <View style={styles.timelineLine} />
+                      ) : null}
+                    </View>
+                    <View style={styles.timelineContent}>
+                      <Text style={[styles.timelineYear, { color: categoryColor }]}>{t.year}</Text>
+                      <Text style={styles.timelineEvent}>{t.event}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {/* FUN FACT */}
+          {enrichment?.funFact ? (
+            <View style={styles.sectionBlock}>
+              <View style={styles.sectionRow}>
+                <Text style={styles.sectionNum}>07</Text>
+                <Text style={styles.sectionLabel}>INSIGHT</Text>
+                <View style={styles.sectionLine} />
+              </View>
+              <View style={styles.funFactCard}>
+                <Sparkles color={Colors.gold} size={16} />
+                <Text style={styles.funFactText}>{enrichment.funFact}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {/* ORIGINAL HISTORY (expandable) */}
+          {spot.history ? (
+            <View style={styles.sectionBlock}>
+              <View style={styles.sectionRow}>
+                <Text style={styles.sectionNum}>08</Text>
+                <Text style={styles.sectionLabel}>ARCHIVE NOTES</Text>
                 <View style={styles.sectionLine} />
               </View>
               <Text style={styles.bodyText}>{spot.history}</Text>
@@ -333,8 +420,8 @@ export default function SpotDetailScreen() {
           {spot.historicalRecords.length > 0 ? (
             <View style={styles.sectionBlock}>
               <View style={styles.sectionRow}>
-                <Text style={styles.sectionNum}>05</Text>
-                <Text style={styles.sectionLabel}>ARCHIVE</Text>
+                <Text style={styles.sectionNum}>09</Text>
+                <Text style={styles.sectionLabel}>ARCHIVAL IMAGES</Text>
                 <View style={styles.sectionLine} />
               </View>
               <ScrollView
@@ -384,6 +471,62 @@ export default function SpotDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  accentCard: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  accentText: { flex: 1, fontSize: 14, lineHeight: 21 },
+  countryCard: {
+    padding: 18,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,209,102,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,209,102,0.22)',
+    gap: 12,
+  },
+  countryHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  countryCustodians: { color: Colors.gold, fontSize: 12, fontWeight: '800' as const, letterSpacing: 1, flex: 1 },
+  indigenousRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(5,8,18,0.4)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,209,102,0.15)',
+  },
+  indigenousLabel: { color: Colors.mist, fontSize: 9, fontWeight: '900' as const, letterSpacing: 2, marginBottom: 4 },
+  indigenousValue: { color: Colors.white, fontSize: 18, fontWeight: '900' as const, letterSpacing: -0.5, fontStyle: 'italic' as const },
+  acknowledgement: { color: Colors.mist, fontSize: 11, lineHeight: 16, fontStyle: 'italic' as const, borderTopWidth: 1, borderTopColor: 'rgba(255,209,102,0.15)', paddingTop: 10 },
+  timeline: { gap: 0 },
+  timelineRow: { flexDirection: 'row', gap: 14 },
+  timelineLeft: { alignItems: 'center', width: 14 },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 4,
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  timelineLine: { flex: 1, width: 1.5, backgroundColor: 'rgba(255,255,255,0.12)', marginTop: 4, minHeight: 28 },
+  timelineContent: { flex: 1, paddingBottom: 18 },
+  timelineYear: { fontSize: 11, fontWeight: '900' as const, letterSpacing: 1.5, marginBottom: 4 },
+  timelineEvent: { color: Colors.cloud, fontSize: 13.5, lineHeight: 19 },
+  funFactCard: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 18,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,209,102,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,209,102,0.28)',
+  },
+  funFactText: { flex: 1, color: Colors.gold, fontSize: 14, lineHeight: 21, fontWeight: '500' as const },
   screen: {
     flex: 1,
     backgroundColor: '#050812',

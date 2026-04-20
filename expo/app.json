@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.bx5hztrzurxiw0b05s4jg"
+      "bundleIdentifier": "app.rork.bx5hztrzurxiw0b05s4jg",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Soundscape Sydney uses your location to show nearby sound locations on the map and provide live navigation.",
+        "NSMicrophoneUsageDescription": "Soundscape Sydney uses your microphone to measure approximate ambient sound levels on the decibel meter screen."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -35,7 +39,13 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Soundscape Sydney uses your location to show nearby sound locations and navigate to them."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

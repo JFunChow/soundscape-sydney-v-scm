@@ -12,6 +12,7 @@ import {
   getSoundLevelDisplay,
   SoundSpot,
 } from '@/data/sound-spots';
+import { enrichmentById } from '@/data/enrichment';
 import { useFavorites } from '@/providers/favorites-provider';
 
 interface SoundSpotCardProps {
@@ -27,6 +28,7 @@ function SoundSpotCardComponent({ spot, index = 0 }: SoundSpotCardProps) {
   const color = categoryColors[spot.category];
 
   const placeholderBg = `${color}22`;
+  const imageUrl = spot.imageUrl || enrichmentById[spot.id]?.backupImageUrl || '';
 
   // asymmetric: every other card offset slightly
   const asymOffset = index % 2 === 0 ? { marginLeft: 0 } : { marginLeft: 18 };
@@ -38,8 +40,8 @@ function SoundSpotCardComponent({ spot, index = 0 }: SoundSpotCardProps) {
       testID={`sound-spot-card-${spot.id}`}
     >
       <View style={styles.imageWrap}>
-        {spot.imageUrl ? (
-          <Image source={{ uri: spot.imageUrl }} style={styles.image} contentFit="cover" />
+        {imageUrl ? (
+          <Image source={{ uri: imageUrl }} style={styles.image} contentFit="cover" />
         ) : (
           <View style={[styles.image, { backgroundColor: placeholderBg, alignItems: 'center', justifyContent: 'center' }]}>
             <Volume2 color={color} size={32} />

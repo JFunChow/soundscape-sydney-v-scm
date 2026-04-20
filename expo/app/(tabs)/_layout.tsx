@@ -5,6 +5,26 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/colors';
 
+type TabIconProps = {
+  color: string;
+  focused: boolean;
+  Icon: React.ComponentType<{ color: string; size: number }>;
+  label: string;
+};
+
+function TabIcon({ color, focused, Icon, label }: TabIconProps) {
+  return (
+    <View style={[styles.iconWrap, focused ? styles.iconWrapActive : null]}>
+      <Icon color={color} size={18} />
+      {focused ? (
+        <Text numberOfLines={1} style={[styles.iconLabel, { color }]}>
+          {label}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 export default function TabLayout() {
   return (
     <Tabs
@@ -12,18 +32,16 @@ export default function TabLayout() {
         headerShown: false,
         tabBarStyle: styles.tabBar,
         tabBarShowLabel: false,
+        tabBarItemStyle: styles.tabItem,
         tabBarActiveTintColor: Colors.white,
-        tabBarInactiveTintColor: 'rgba(220,231,242,0.5)',
+        tabBarInactiveTintColor: 'rgba(220,231,242,0.55)',
       }}
     >
       <Tabs.Screen
         name="explore"
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrap, focused ? styles.iconWrapActive : null]}>
-              <Compass color={color} size={20} />
-              {focused ? <Text style={[styles.iconLabel, { color }]}>Explore</Text> : null}
-            </View>
+            <TabIcon color={color} focused={focused} Icon={Compass} label="Explore" />
           ),
         }}
       />
@@ -31,10 +49,7 @@ export default function TabLayout() {
         name="map"
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrap, focused ? styles.iconWrapActive : null]}>
-              <Map color={color} size={20} />
-              {focused ? <Text style={[styles.iconLabel, { color }]}>Map</Text> : null}
-            </View>
+            <TabIcon color={color} focused={focused} Icon={Map} label="Map" />
           ),
         }}
       />
@@ -42,10 +57,7 @@ export default function TabLayout() {
         name="meter"
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrap, focused ? styles.iconWrapActive : null]}>
-              <Activity color={color} size={20} />
-              {focused ? <Text style={[styles.iconLabel, { color }]}>Meter</Text> : null}
-            </View>
+            <TabIcon color={color} focused={focused} Icon={Activity} label="Meter" />
           ),
         }}
       />
@@ -53,10 +65,7 @@ export default function TabLayout() {
         name="add"
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrap, focused ? styles.iconWrapActive : null]}>
-              <Plus color={color} size={20} />
-              {focused ? <Text style={[styles.iconLabel, { color }]}>Add</Text> : null}
-            </View>
+            <TabIcon color={color} focused={focused} Icon={Plus} label="Add" />
           ),
         }}
       />
@@ -64,10 +73,7 @@ export default function TabLayout() {
         name="saved"
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconWrap, focused ? styles.iconWrapActive : null]}>
-              <Bookmark color={color} size={20} />
-              {focused ? <Text style={[styles.iconLabel, { color }]}>Saved</Text> : null}
-            </View>
+            <TabIcon color={color} focused={focused} Icon={Bookmark} label="Saved" />
           ),
         }}
       />
@@ -81,23 +87,29 @@ const styles = StyleSheet.create({
     left: 18,
     right: 18,
     bottom: 18,
-    height: 62,
-    paddingTop: 8,
+    height: 64,
+    paddingTop: 10,
+    paddingBottom: 10,
     borderRadius: 999,
-    backgroundColor: 'rgba(5,8,18,0.92)',
+    backgroundColor: 'rgba(5,8,18,0.94)',
     borderTopWidth: 0,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
+  tabItem: {
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   iconWrap: {
     minWidth: 40,
     height: 40,
-    borderRadius: 16,
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
-    gap: 5,
+    paddingHorizontal: 10,
+    gap: 6,
   },
   iconWrapActive: {
     backgroundColor: 'rgba(47,255,224,0.12)',
@@ -108,5 +120,6 @@ const styles = StyleSheet.create({
   iconLabel: {
     fontSize: 11,
     fontWeight: '700',
+    includeFontPadding: false,
   },
 });

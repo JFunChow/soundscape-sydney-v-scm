@@ -85,6 +85,7 @@ function NeonMarker({ color, size = 12, focused }: { color: string; size?: numbe
   return (
     <View style={styles.markerBox}>
       <Animated.View
+        pointerEvents="none"
         style={[
           styles.markerRing,
           {
@@ -350,12 +351,14 @@ export default function MapScreen() {
           <Marker
             key={spot.id}
             coordinate={spot.coordinates}
-            onPress={() => {
-              console.log('[map] marker tap', spot.id);
-              setSelectedSpotId(spot.id);
+            onPress={(e: any) => {
+              e?.stopPropagation?.();
+              console.log('[map] marker tap -> detail', spot.id);
+              router.push(`/spots/${spot.id}`);
             }}
             tracksViewChanges={false}
             anchor={{ x: 0.5, y: 0.5 }}
+            stopPropagation
             testID={`marker-${spot.id}`}
           >
             <NeonMarker

@@ -32,9 +32,167 @@ export interface SoundSpot {
 export const soundCategories: SoundCategory[] = ['Biophony', 'Anthrophony', 'Geophony'];
 
 export const categoryColors: Record<SoundCategory, string> = {
-  Biophony: '#21D4B5',
-  Anthrophony: '#FF8A65',
-  Geophony: '#63E6FF',
+  Biophony: '#2FFFE0',
+  Anthrophony: '#FF2FB8',
+  Geophony: '#7C4BFF',
+};
+
+export interface LiveInfo {
+  hours?: string[];
+  tip?: string;
+  website?: string;
+  source?: string;
+}
+
+export const liveInfoById: Record<string, LiveInfo> = {
+  'botanic-garden': {
+    hours: [
+      'Jan, Feb, Nov, Dec — 7am to 8pm',
+      'Oct — 7am to 7:30pm',
+      'Mar — 7am to 6:30pm',
+      'Apr, Sep — 7am to 6pm',
+      'May, Aug — 7am to 5:30pm',
+      'Jun, Jul — 7am to 5pm',
+    ],
+    tip: 'Free entry. Closing times follow sunset.',
+    website: 'https://www.botanicgardens.org.au',
+  },
+  'sydney-opera-house': {
+    hours: ['Tours daily 9am to 5pm', 'Box office 9am to 8:30pm'],
+    tip: 'Live performances most nights — check program.',
+    website: 'https://www.sydneyoperahouse.com',
+  },
+  'circular-quay': {
+    hours: ['Open 24 hours', 'Ferries 5am to midnight'],
+    tip: 'Busiest 5–7pm with commuter ferries.',
+  },
+  'lavender-bay': {
+    hours: ['Open 24 hours'],
+    tip: 'Wendy Whiteley\u2019s Secret Garden nearby, 7am to sunset.',
+  },
+  'china-town': {
+    hours: ['Open daily', 'Restaurants peak 6pm to 10pm'],
+    tip: 'Friday Night Markets on Dixon Street, 4pm to 11pm.',
+  },
+  'central-station': {
+    hours: ['Trains 4am to 1am', 'Metro 5am to midnight'],
+    tip: 'Rush hour 7:30–9am and 5–6:30pm.',
+  },
+  'saint-marys-cathedral': {
+    hours: ['Mon–Fri 6:30am to 6:30pm', 'Sat 8am to 7:30pm', 'Sun 6:30am to 7:30pm'],
+    tip: 'Choir rehearsals Thursday evenings.',
+    website: 'https://www.stmaryscathedral.org.au',
+  },
+  'chatswood-station': {
+    hours: ['Trains and Metro 4:30am to 1am'],
+    tip: 'Interchange for T1 and Sydney Metro.',
+  },
+  'town-hall': {
+    hours: ['Mon–Fri 8am to 6pm'],
+    tip: 'Organ recitals select Thursdays, 12:30pm.',
+  },
+  'cremorne-point': {
+    hours: ['Reserve open 24 hours'],
+    tip: 'Harbour walk is 2.5km loop.',
+  },
+  'yena-picnic-area': {
+    hours: ['Park 7am to 7:30pm (Oct–Mar)', 'Park 7am to 5:30pm (Apr–Sep)'],
+    tip: 'Part of Kamay Botany Bay National Park. Vehicle fee applies.',
+  },
+  'depena-reserve': {
+    hours: ['Open 24 hours'],
+    tip: 'Quiet bayside reserve with mangrove boardwalk.',
+  },
+  'little-bay-beach': {
+    hours: ['Open 24 hours', 'No lifeguards'],
+    tip: 'Sheltered swimming. Best at low tide.',
+  },
+  'lady-robinsons-beach': {
+    hours: ['Open 24 hours'],
+    tip: 'Flight path overhead — plane sounds frequent.',
+  },
+  'lavender-bay-2': {
+    hours: ['Open 24 hours'],
+    tip: 'Panoramic view of Sydney Harbour Bridge.',
+  },
+  'flat-rock-gully': {
+    hours: ['Dawn to dusk'],
+    tip: 'Bushland walk, 40 minute loop.',
+  },
+  'world-square': {
+    hours: ['Retail 10am to 7pm', 'Thursday until 9pm'],
+    tip: 'Food court open late — lively weeknights.',
+  },
+  'central-station-indoor': {
+    hours: ['4am to 1am'],
+    tip: 'Grand Concourse echoes beautifully.',
+  },
+  'cremorne-point-manly-drive': {
+    hours: ['Open 24 hours'],
+  },
+  'city-driving': {
+    hours: ['Peak traffic 7–9am and 4–7pm'],
+  },
+  'surry-hill': {
+    hours: ['Cafes 6:30am to 4pm', 'Bars 4pm to late'],
+    tip: 'Crown Street most vibrant on weekends.',
+  },
+  'coogee-beach': {
+    hours: ['Lifeguards 7am to 7pm (summer)', 'Lifeguards 9am to 5pm (winter)'],
+    tip: 'Coastal walk to Bondi starts here.',
+  },
+  'unsw': {
+    hours: ['Campus 24 hours', 'Library Mon–Fri 8am to 10pm'],
+    tip: 'Quietest during semester breaks.',
+  },
+  'centennial-park': {
+    hours: ['Oct–Mar 6am to 8pm', 'Apr–Sep 6:30am to 5:30pm'],
+    tip: 'Moonlight Cinema in summer.',
+    website: 'https://www.centennialparklands.com.au',
+  },
+  'hyde-park': {
+    hours: ['Open 24 hours'],
+    tip: 'Archibald Fountain bells every quarter hour.',
+  },
+  'dickens-drive-centennial-park': {
+    hours: ['Oct–Mar 6am to 8pm', 'Apr–Sep 6:30am to 5:30pm'],
+  },
+  'state-library-nsw': {
+    hours: ['Mon–Thu 9am to 8pm', 'Fri 9am to 5pm', 'Sat–Sun 10am to 5pm'],
+    website: 'https://www.sl.nsw.gov.au',
+  },
+  'sydney-park': {
+    hours: ['Open 24 hours'],
+    tip: 'Wetlands attract ibis and ducks at dawn.',
+  },
+  'campbell-road-bridge': {
+    hours: ['Open 24 hours'],
+  },
+  'alexandria': {
+    hours: ['Warehouse cafes 7am to 3pm'],
+  },
+  'central-station-exit-6': {
+    hours: ['Open with station hours'],
+  },
+  'sydney-opera-house-2': {
+    hours: ['Tours daily 9am to 5pm'],
+  },
+  'manly-wormhole': {
+    hours: ['Accessible at low tide only'],
+    tip: 'Check tide chart. Closed during rough swell.',
+  },
+  'manly-harbour-drive': {
+    hours: ['Open 24 hours'],
+  },
+  'chinese-garden-of-friendship': {
+    hours: ['Daily 10am to 5pm', 'Closed Christmas Day'],
+    tip: 'Admission $6 adult / $3 concession.',
+    website: 'https://www.darlingharbour.com',
+  },
+  'brickpit-ring-walk': {
+    hours: ['Open 24 hours'],
+    tip: 'Green and golden bell frog habitat — listen at dusk.',
+  },
 };
 
 export const categoryIcons: Record<SoundCategory, string> = {

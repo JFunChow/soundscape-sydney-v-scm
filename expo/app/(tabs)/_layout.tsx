@@ -78,16 +78,16 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 16,
-    height: 68,
-    paddingTop: 10,
-    borderRadius: 24,
-    backgroundColor: 'rgba(7,17,28,0.92)',
+    left: 18,
+    right: 18,
+    bottom: 18,
+    height: 62,
+    paddingTop: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(5,8,18,0.92)',
     borderTopWidth: 0,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   iconWrap: {
     minWidth: 40,
@@ -100,8 +100,10 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   iconWrapActive: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(47,255,224,0.12)',
     paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(47,255,224,0.4)',
   },
   iconLabel: {
     fontSize: 11,

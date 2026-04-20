@@ -1,17 +1,16 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Crosshair, ExternalLink, MapPin, Navigation } from 'lucide-react-native';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Crosshair, ExternalLink, MapPin, Navigation, X } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CategoryPill } from '@/components/category-pill';
 import { Colors } from '@/constants/colors';
 import {
   categoryColors,
   getAverageSoundLevel,
-  getSoundLevelDisplay,
   getSoundLevelLabel,
+  liveInfoById,
   SoundCategory,
   soundCategories,
   soundSpots,
@@ -19,32 +18,80 @@ import {
 
 let MapView: any = null;
 let Marker: any = null;
-let Callout: any = null;
 let PROVIDER_DEFAULT: any = null;
 
 if (Platform.OS !== 'web') {
   const maps = require('react-native-maps');
   MapView = maps.default;
   Marker = maps.Marker;
-  Callout = maps.Callout;
   PROVIDER_DEFAULT = maps.PROVIDER_DEFAULT;
 }
 
 const SYDNEY_REGION = {
   latitude: -33.8688,
   longitude: 151.2093,
-  latitudeDelta: 0.06,
-  longitudeDelta: 0.06,
+  latitudeDelta: 0.08,
+  longitudeDelta: 0.08,
 };
 
+// Neon cyberpunk inspired Sydney map — horizontal text only, minimal.
 const mapStyle = [
-  { elementType: 'geometry', stylers: [{ color: '#0B1724' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0B1724' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#8CA3B8' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#07111C' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#13273A' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#0F2218' }] },
+  { elementType: 'geometry', stylers: [{ color: '#05060F' }] },
+  { elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#7C4BFF' }, { weight: 0.3 }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#FF2FB8' }, { weight: 0.6 }] },
+  { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#A060FF' }, { weight: 0.4 }] },
+  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#0A0815' }] },
+  { featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#1A0B28' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#030515' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#0B0820' }] },
 ];
+
+function NeonMarker({ color, size = 12 }: { color: string; size?: number }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1400, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1400, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [pulse]);
+
+  const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.8, 2.2] });
+  const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] });
+
+  return (
+    <View style={styles.markerBox}>
+      <Animated.View
+        style={[
+          styles.markerRing,
+          {
+            width: size * 3,
+            height: size * 3,
+            borderRadius: size * 1.5,
+            borderColor: color,
+            transform: [{ scale: ringScale }],
+            opacity: ringOpacity,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.markerDot,
+          { width: size, height: size, borderRadius: size / 2, backgroundColor: color, shadowColor: color },
+        ]}
+      />
+    </View>
+  );
+}
 
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
@@ -58,91 +105,101 @@ export default function MapScreen() {
   }, [selectedCategory]);
 
   const centerOnSydney = useCallback(() => {
-    console.log('[map] centering on Sydney');
     mapRef.current?.animateToRegion(SYDNEY_REGION, 600);
   }, []);
 
-  const handleMarkerPress = useCallback((spotId: string) => {
-    console.log('[map] marker pressed', spotId);
-    setSelectedSpotId(spotId);
-  }, []);
-
-  const selectedSpot = useMemo(() => {
-    return soundSpots.find((s) => s.id === selectedSpotId);
-  }, [selectedSpotId]);
+  const selectedSpot = useMemo(() => soundSpots.find((s) => s.id === selectedSpotId), [selectedSpotId]);
 
   const openInGoogleMaps = useCallback((lat: number, lng: number) => {
     const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-    Linking.openURL(url);
+    void Linking.openURL(url);
   }, []);
+
+  const cardAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(cardAnim, {
+      toValue: selectedSpot ? 1 : 0,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 160,
+    }).start();
+  }, [selectedSpot, cardAnim]);
+
+  const cardTranslate = cardAnim.interpolate({ inputRange: [0, 1], outputRange: [140, 0] });
+  const cardOpacity = cardAnim;
+
+  const renderHeader = () => (
+    <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <View style={styles.headerRow}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerBrand}>SOUNDSCAPE</Text>
+          <View style={styles.brandUnderline} />
+          <Text style={styles.headerCoord}>33.8688° S · 151.2093° E</Text>
+        </View>
+        <Pressable onPress={centerOnSydney} style={styles.centerBtn} testID="center-button">
+          <Crosshair color={Colors.cyan} size={16} />
+        </Pressable>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        {(['All', ...soundCategories] as const).map((cat) => {
+          const active = selectedCategory === cat;
+          const color = cat === 'All' ? Colors.white : categoryColors[cat];
+          return (
+            <Pressable
+              key={cat}
+              onPress={() => setSelectedCategory(cat)}
+              style={[styles.filterChip, active && { borderColor: color, backgroundColor: `${color}18` }]}
+            >
+              {cat !== 'All' ? (
+                <View style={[styles.filterDot, { backgroundColor: color }]} />
+              ) : null}
+              <Text style={[styles.filterText, active && { color }]}>{cat}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
 
   if (Platform.OS === 'web') {
     return (
       <View style={styles.screen}>
-        <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-          <View style={styles.topBarContent}>
-            <View>
-              <Text style={styles.topTitle}>Sound Map</Text>
-              <Text style={styles.topSubtitle}>{filteredSpots.length} locations in Sydney</Text>
-            </View>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScrollWeb}>
-            <CategoryPill label="All" isActive={selectedCategory === 'All'} onPress={() => setSelectedCategory('All')} />
-            {soundCategories.map((cat) => (
-              <CategoryPill
-                key={cat}
-                label={cat}
-                isActive={selectedCategory === cat}
-                onPress={() => setSelectedCategory(cat)}
-              />
-            ))}
-          </ScrollView>
-        </View>
-
+        <LinearGradient
+          colors={['#050812', '#0E0B28', '#1B0B2E']}
+          style={StyleSheet.absoluteFill}
+        />
+        {renderHeader()}
         <ScrollView
-          style={styles.webListScroll}
-          contentContainerStyle={[styles.webListContent, { paddingTop: insets.top + 120 }]}
+          style={styles.webScroll}
+          contentContainerStyle={[styles.webScrollContent, { paddingTop: insets.top + 180 }]}
         >
-          {filteredSpots.map((spot) => {
-            const avgLevel = getAverageSoundLevel(spot);
-            const levelDisplay = getSoundLevelDisplay(spot);
-            const levelLabel = getSoundLevelLabel(spot);
-            return (
+          <View style={styles.webMapHint}>
+            <Text style={styles.webHintTitle}>Interactive map</Text>
+            <Text style={styles.webHintText}>Open on iOS or Android to view the live neon map. Tap any spot below to explore.</Text>
+          </View>
+          {filteredSpots.map((spot) => (
+            <Pressable
+              key={spot.id}
+              onPress={() => router.push(`/spots/${spot.id}`)}
+              style={styles.webRow}
+            >
+              <View style={[styles.webRowDot, { backgroundColor: categoryColors[spot.category], shadowColor: categoryColors[spot.category] }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.webRowTitle}>{spot.name}</Text>
+                <Text style={styles.webRowSub}>{spot.category} · {getSoundLevelLabel(spot)}</Text>
+              </View>
               <Pressable
-                key={spot.id}
-                onPress={() => router.push(`/spots/${spot.id}`)}
-                style={styles.webSpotCard}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  openInGoogleMaps(spot.coordinates.latitude, spot.coordinates.longitude);
+                }}
+                style={styles.webRowLink}
               >
-                <LinearGradient
-                  colors={['rgba(19,39,58,0.95)', 'rgba(11,23,36,0.95)']}
-                  style={styles.webSpotCardGrad}
-                >
-                  <View style={styles.webSpotRow}>
-                    <View style={[styles.markerOuter, { borderColor: categoryColors[spot.category] }]}>
-                      <View style={[styles.markerInner, { backgroundColor: categoryColors[spot.category] }]}>
-                        <MapPin color={Colors.ink} size={14} />
-                      </View>
-                    </View>
-                    <View style={styles.webSpotInfo}>
-                      <Text style={styles.webSpotTitle}>{spot.name}</Text>
-                      <Text style={styles.webSpotSub}>
-                        {spot.category}{avgLevel > 0 ? ` · ${levelLabel} · ${levelDisplay}` : ''}
-                      </Text>
-                    </View>
-                    <Pressable
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        openInGoogleMaps(spot.coordinates.latitude, spot.coordinates.longitude);
-                      }}
-                      style={styles.webMapLink}
-                    >
-                      <ExternalLink color={Colors.cyan} size={16} />
-                    </Pressable>
-                  </View>
-                </LinearGradient>
+                <ExternalLink color={Colors.cyan} size={15} />
               </Pressable>
-            );
-          })}
+            </Pressable>
+          ))}
         </ScrollView>
       </View>
     );
@@ -158,82 +215,91 @@ export default function MapScreen() {
         showsUserLocation
         showsMyLocationButton={false}
         showsCompass={false}
+        showsPointsOfInterest={false}
+        showsBuildings={false}
+        showsTraffic={false}
+        showsIndoors={false}
         customMapStyle={mapStyle}
+        onPress={() => setSelectedSpotId(null)}
         testID="sound-map"
       >
-        {filteredSpots.map((spot) => {
-          const avgLevel = getAverageSoundLevel(spot);
-          return (
-            <Marker
-              key={spot.id}
-              coordinate={spot.coordinates}
-              onPress={() => handleMarkerPress(spot.id)}
-              tracksViewChanges={false}
-            >
-              <View style={[styles.markerOuter, { borderColor: categoryColors[spot.category] }]}>
-                <View style={[styles.markerInner, { backgroundColor: categoryColors[spot.category] }]}>
-                  <MapPin color={Colors.ink} size={14} />
-                </View>
-              </View>
-              <Callout tooltip onPress={() => router.push(`/spots/${spot.id}`)}>
-                <View style={styles.callout}>
-                  <Text style={styles.calloutTitle}>{spot.name}</Text>
-                  <Text style={styles.calloutSub}>{spot.category}{avgLevel > 0 ? ` · ${avgLevel} dB` : ''}</Text>
-                </View>
-              </Callout>
-            </Marker>
-          );
-        })}
+        {filteredSpots.map((spot) => (
+          <Marker
+            key={spot.id}
+            coordinate={spot.coordinates}
+            onPress={() => setSelectedSpotId(spot.id)}
+            tracksViewChanges={false}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <NeonMarker color={categoryColors[spot.category]} size={selectedSpotId === spot.id ? 16 : 10} />
+          </Marker>
+        ))}
       </MapView>
 
-      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-        <View style={styles.topBarContent}>
-          <View>
-            <Text style={styles.topTitle}>Sound Map</Text>
-            <Text style={styles.topSubtitle}>{filteredSpots.length} locations in Sydney</Text>
-          </View>
-          <View style={styles.topActions}>
-            <Pressable onPress={centerOnSydney} style={styles.actionButton} testID="center-button">
-              <Crosshair color={Colors.white} size={18} />
-            </Pressable>
-          </View>
-        </View>
+      {/* top vignette */}
+      <LinearGradient
+        colors={['rgba(5,8,18,0.92)', 'rgba(5,8,18,0.6)', 'rgba(5,8,18,0)']}
+        style={[styles.topVignette, { height: insets.top + 180 }]}
+        pointerEvents="none"
+      />
 
-        <View style={styles.categoryScroll}>
-          <CategoryPill label="All" isActive={selectedCategory === 'All'} onPress={() => setSelectedCategory('All')} />
-          {soundCategories.map((cat) => (
-            <CategoryPill
-              key={cat}
-              label={cat}
-              isActive={selectedCategory === cat}
-              onPress={() => setSelectedCategory(cat)}
-            />
-          ))}
-        </View>
-      </View>
+      {renderHeader()}
+
+      {/* bottom vignette */}
+      <LinearGradient
+        colors={['rgba(5,8,18,0)', 'rgba(5,8,18,0.85)']}
+        style={[styles.bottomVignette, { height: 180 + insets.bottom }]}
+        pointerEvents="none"
+      />
 
       {selectedSpot ? (
-        <Pressable
-          onPress={() => router.push(`/spots/${selectedSpot.id}`)}
-          style={[styles.bottomCard, { bottom: 110 + insets.bottom }]}
+        <Animated.View
+          style={[
+            styles.floatCard,
+            {
+              bottom: 110 + insets.bottom,
+              opacity: cardOpacity,
+              transform: [{ translateY: cardTranslate }],
+            },
+          ]}
           testID="selected-spot-card"
         >
-          <LinearGradient
-            colors={['rgba(19,39,58,0.98)', 'rgba(11,23,36,0.98)']}
-            style={styles.bottomCardGrad}
+          <Pressable
+            onPress={() => router.push(`/spots/${selectedSpot.id}`)}
+            style={styles.floatCardInner}
           >
-            <View style={styles.bottomCardContent}>
-              <View style={[styles.categoryDot, { backgroundColor: categoryColors[selectedSpot.category] }]} />
-              <View style={styles.bottomCardText}>
-                <Text style={styles.bottomCardTitle}>{selectedSpot.name}</Text>
-                <Text style={styles.bottomCardSub}>
-                  {selectedSpot.category} · {getSoundLevelLabel(selectedSpot)}
-                </Text>
+            <LinearGradient
+              colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)']}
+              style={styles.floatGlass}
+            >
+              <View style={[styles.floatGlow, { shadowColor: categoryColors[selectedSpot.category] }]} />
+              <Pressable onPress={() => setSelectedSpotId(null)} style={styles.closeBtn} hitSlop={12}>
+                <X color={Colors.cloud} size={14} />
+              </Pressable>
+
+              <View style={styles.floatRow}>
+                <View style={[styles.catTag, { borderColor: categoryColors[selectedSpot.category] }]}>
+                  <View style={[styles.catTagDot, { backgroundColor: categoryColors[selectedSpot.category] }]} />
+                  <Text style={[styles.catTagText, { color: categoryColors[selectedSpot.category] }]}>
+                    {selectedSpot.category.toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={styles.feelingText}>{getSoundLevelLabel(selectedSpot)}</Text>
               </View>
-              <Navigation color={Colors.cyan} size={20} />
-            </View>
-          </LinearGradient>
-        </Pressable>
+
+              <Text style={styles.floatTitle} numberOfLines={2}>{selectedSpot.name}</Text>
+
+              {liveInfoById[selectedSpot.id]?.tip ? (
+                <Text style={styles.floatTip} numberOfLines={2}>{liveInfoById[selectedSpot.id].tip}</Text>
+              ) : null}
+
+              <View style={styles.floatFooter}>
+                <Text style={styles.floatCTA}>Open details</Text>
+                <Navigation color={Colors.cyan} size={16} />
+              </View>
+            </LinearGradient>
+          </Pressable>
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -242,168 +308,263 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: Colors.night,
+    backgroundColor: '#050812',
   },
-  topBar: {
+  topVignette: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-    backgroundColor: 'rgba(7,17,28,0.85)',
   },
-  topBarContent: {
+  bottomVignette: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 22,
+    paddingBottom: 10,
+  },
+  headerRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  topTitle: {
-    color: Colors.white,
-    fontSize: 24,
-    fontWeight: '900',
+  headerLeft: {
+    gap: 6,
   },
-  topSubtitle: {
-    color: Colors.cloud,
-    fontSize: 13,
-    fontWeight: '600',
+  headerBrand: {
+    color: Colors.cyan,
+    fontSize: 18,
+    fontWeight: '900' as const,
+    letterSpacing: 4,
+  },
+  brandUnderline: {
+    width: 38,
+    height: 1.5,
+    backgroundColor: Colors.cyan,
+    opacity: 0.7,
+  },
+  headerCoord: {
+    color: Colors.mist,
+    fontSize: 10,
+    fontWeight: '600' as const,
+    letterSpacing: 1.5,
     marginTop: 2,
   },
-  topActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  categoryScroll: {
-    flexDirection: 'row',
-    gap: 0,
-  },
-  markerOuter: {
+  centerBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(7,17,28,0.7)',
-  },
-  markerInner: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  callout: {
-    backgroundColor: Colors.slate,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
+    backgroundColor: 'rgba(47,255,224,0.08)',
     borderWidth: 1,
-    borderColor: Colors.border,
-    maxWidth: 220,
+    borderColor: 'rgba(47,255,224,0.3)',
   },
-  calloutTitle: {
-    color: Colors.white,
-    fontSize: 14,
-    fontWeight: '800',
+  filterRow: {
+    gap: 8,
+    paddingRight: 20,
   },
-  calloutSub: {
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(10,13,28,0.6)',
+  },
+  filterDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  filterText: {
     color: Colors.cloud,
     fontSize: 12,
-    marginTop: 2,
+    fontWeight: '700' as const,
+    letterSpacing: 0.5,
   },
-  bottomCard: {
+  markerBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 40,
+    height: 40,
+  },
+  markerRing: {
     position: 'absolute',
-    left: 20,
-    right: 20,
+    borderWidth: 1.5,
+  },
+  markerDot: {
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  },
+  floatCard: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+  },
+  floatCardInner: {
     borderRadius: 24,
     overflow: 'hidden',
   },
-  bottomCardGrad: {
+  floatGlass: {
+    padding: 18,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(255,255,255,0.14)',
+    overflow: 'hidden',
   },
-  bottomCardContent: {
+  floatGlow: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    shadowOpacity: 0.8,
+    shadowRadius: 50,
+    shadowOffset: { width: 0, height: 0 },
+    backgroundColor: 'transparent',
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  floatRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 18,
-    gap: 14,
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingRight: 30,
   },
-  categoryDot: {
+  catTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  catTagDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  catTagText: {
+    fontSize: 10,
+    fontWeight: '800' as const,
+    letterSpacing: 1,
+  },
+  feelingText: {
+    color: Colors.mist,
+    fontSize: 11,
+    fontWeight: '700' as const,
+    letterSpacing: 1,
+    textTransform: 'uppercase' as const,
+  },
+  floatTitle: {
+    color: Colors.white,
+    fontSize: 22,
+    fontWeight: '900' as const,
+    lineHeight: 26,
+    marginBottom: 6,
+  },
+  floatTip: {
+    color: Colors.cloud,
+    fontSize: 12,
+    lineHeight: 17,
+    opacity: 0.8,
+    marginBottom: 12,
+  },
+  floatFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  floatCTA: {
+    color: Colors.cyan,
+    fontSize: 12,
+    fontWeight: '800' as const,
+    letterSpacing: 1.5,
+  },
+  webScroll: { flex: 1 },
+  webScrollContent: {
+    paddingHorizontal: 18,
+    paddingBottom: 140,
+    gap: 8,
+  },
+  webMapHint: {
+    padding: 18,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 14,
+  },
+  webHintTitle: {
+    color: Colors.cyan,
+    fontSize: 12,
+    fontWeight: '800' as const,
+    letterSpacing: 2,
+    marginBottom: 6,
+  },
+  webHintText: {
+    color: Colors.cloud,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  webRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  webRowDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
   },
-  bottomCardText: {
-    flex: 1,
-    gap: 4,
-  },
-  bottomCardTitle: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  bottomCardSub: {
-    color: Colors.cloud,
-    fontSize: 13,
-  },
-  categoryScrollWeb: {
-    flexGrow: 0,
-  },
-  webListScroll: {
-    flex: 1,
-  },
-  webListContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-    gap: 12,
-  },
-  webSpotCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  webSpotCardGrad: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  webSpotRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    gap: 14,
-  },
-  webSpotInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  webSpotTitle: {
+  webRowTitle: {
     color: Colors.white,
     fontSize: 15,
     fontWeight: '700' as const,
   },
-  webSpotSub: {
-    color: Colors.cloud,
-    fontSize: 13,
+  webRowSub: {
+    color: Colors.mist,
+    fontSize: 12,
+    marginTop: 2,
   },
-  webMapLink: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  webRowLink: {
+    padding: 8,
   },
+  // placeholders for unused previous styles referenced nowhere now removed
+  markerOuter: { width: 0, height: 0 },
+  markerInner: { width: 0, height: 0 },
 });

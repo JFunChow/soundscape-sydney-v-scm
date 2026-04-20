@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Heart, MapPinned, MoveRight, Volume2 } from 'lucide-react-native';
+import { Heart, MoveUpRight, Volume2 } from 'lucide-react-native';
 import React, { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -15,78 +16,82 @@ import { useFavorites } from '@/providers/favorites-provider';
 
 interface SoundSpotCardProps {
   spot: SoundSpot;
+  index?: number;
 }
 
-function SoundSpotCardComponent({ spot }: SoundSpotCardProps) {
+function SoundSpotCardComponent({ spot, index = 0 }: SoundSpotCardProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const favorite = isFavorite(spot.id);
   const avgLevel = getAverageSoundLevel(spot);
   const levelDisplay = getSoundLevelDisplay(spot);
+  const color = categoryColors[spot.category];
 
-  const getLevelColor = () => {
-    if (avgLevel === 0) return Colors.mist;
-    if (avgLevel < 50) return Colors.teal;
-    if (avgLevel < 65) return Colors.gold;
-    return Colors.coral;
-  };
+  const placeholderBg = `${color}22`;
 
-  const placeholderBg = spot.category === 'Biophony'
-    ? 'rgba(33,212,181,0.15)'
-    : spot.category === 'Geophony'
-      ? 'rgba(99,230,255,0.15)'
-      : 'rgba(255,138,101,0.15)';
+  // asymmetric: every other card offset slightly
+  const asymOffset = index % 2 === 0 ? { marginLeft: 0 } : { marginLeft: 18 };
 
   return (
     <Pressable
       onPress={() => router.push(`/spots/${spot.id}`)}
-      style={({ pressed }) => [styles.card, pressed ? styles.cardPressed : null]}
+      style={({ pressed }) => [styles.card, asymOffset, pressed ? styles.cardPressed : null]}
       testID={`sound-spot-card-${spot.id}`}
     >
-      {spot.imageUrl ? (
-        <Image source={{ uri: spot.imageUrl }} style={styles.image} contentFit="cover" />
-      ) : (
-        <View style={[styles.image, styles.imagePlaceholder, { backgroundColor: placeholderBg }]}>
-          <MapPinned color={categoryColors[spot.category]} size={32} />
-          <Text style={[styles.placeholderText, { color: categoryColors[spot.category] }]}>{spot.name}</Text>
-        </View>
-      )}
-      <Pressable
-        onPress={() => toggleFavorite(spot.id)}
-        style={styles.favoriteButton}
-        testID={`favorite-button-${spot.id}`}
-      >
-        <Heart color={favorite ? Colors.rose : Colors.white} fill={favorite ? Colors.rose : 'transparent'} size={18} />
-      </Pressable>
-
-      <View style={[styles.categoryTag, { backgroundColor: categoryColors[spot.category] + '22' }]}>
-        <View style={[styles.categoryDot, { backgroundColor: categoryColors[spot.category] }]} />
-        <Text style={[styles.categoryTagText, { color: categoryColors[spot.category] }]}>{spot.category}</Text>
-      </View>
-
-      <View style={styles.content}>
-        <View style={styles.topRow}>
-          <View style={styles.titleWrap}>
-            <Text style={styles.title}>{spot.name}</Text>
-            {spot.address ? <Text style={styles.subtitle} numberOfLines={2}>{spot.address}</Text> : null}
+      <View style={styles.imageWrap}>
+        {spot.imageUrl ? (
+          <Image source={{ uri: spot.imageUrl }} style={styles.image} contentFit="cover" />
+        ) : (
+          <View style={[styles.image, { backgroundColor: placeholderBg, alignItems: 'center', justifyContent: 'center' }]}>
+            <Volume2 color={color} size={32} />
           </View>
-          <MoveRight color={Colors.cloud} size={18} />
+        )}
+        <LinearGradient
+          colors={['transparent', 'rgba(5,8,18,0.2)', 'rgba(5,8,18,0.95)']}
+          style={StyleSheet.absoluteFill}
+        />
+
+        {/* category tag - top left */}
+        <View style={[styles.catTag, { borderColor: color }]}>
+          <View style={[styles.catDot, { backgroundColor: color, shadowColor: color }]} />
+          <Text style={[styles.catText, { color }]}>{spot.category.toUpperCase()}</Text>
         </View>
 
-        <View style={styles.metaRow}>
-          {spot.address ? (
-            <View style={styles.metaBadge}>
-              <MapPinned color={Colors.cyan} size={13} />
-              <Text style={styles.metaText} numberOfLines={1}>{spot.address.split(',')[0]}</Text>
-            </View>
-          ) : null}
-          {avgLevel > 0 ? (
-            <View style={styles.metaBadge}>
-              <Volume2 color={getLevelColor()} size={13} />
-              <Text style={[styles.metaText, { color: getLevelColor() }]}>{levelDisplay}</Text>
-            </View>
-          ) : null}
+        {/* favorite - top right */}
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            toggleFavorite(spot.id);
+          }}
+          hitSlop={10}
+          style={styles.fav}
+          testID={`favorite-button-${spot.id}`}
+        >
+          <Heart color={favorite ? Colors.neon : Colors.white} fill={favorite ? Colors.neon : 'transparent'} size={15} />
+        </Pressable>
+
+        {/* index number big bottom right */}
+        <Text style={styles.bigNum}>{String(index + 1).padStart(2, '0')}</Text>
+
+        {/* title and arrow */}
+        <View style={styles.titleBlock}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title} numberOfLines={2}>{spot.name}</Text>
+            {spot.address ? (
+              <Text style={styles.sub} numberOfLines={1}>{spot.address.split(',')[0]}</Text>
+            ) : null}
+          </View>
+          <View style={[styles.arrow, { borderColor: color }]}>
+            <MoveUpRight color={color} size={14} />
+          </View>
         </View>
       </View>
+
+      {avgLevel > 0 ? (
+        <View style={styles.levelRow}>
+          <Text style={styles.levelLabel}>SOUND LEVEL</Text>
+          <Text style={[styles.levelValue, { color }]}>{levelDisplay}</Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -95,100 +100,124 @@ export const SoundSpotCard = memo(SoundSpotCardComponent);
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 16,
+    borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 18,
     overflow: 'hidden',
   },
   cardPressed: {
-    transform: [{ scale: 0.992 }],
+    transform: [{ scale: 0.99 }],
+  },
+  imageWrap: {
+    width: '100%',
+    height: 240,
+    position: 'relative',
   },
   image: {
     width: '100%',
-    height: 200,
+    height: '100%',
   },
-  imagePlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  placeholderText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  favoriteButton: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(7,17,28,0.55)',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  categoryTag: {
+  catTag: {
     position: 'absolute',
     top: 14,
     left: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     borderRadius: 999,
+    borderWidth: 1,
+    backgroundColor: 'rgba(5,8,18,0.5)',
   },
-  categoryDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  catDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    shadowOpacity: 1,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 0 },
   },
-  categoryTagText: {
-    fontSize: 11,
-    fontWeight: '700',
+  catText: {
+    fontSize: 9,
+    fontWeight: '900' as const,
+    letterSpacing: 1.5,
   },
-  content: {
-    padding: 16,
-    gap: 14,
+  fav: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(5,8,18,0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
-  topRow: {
+  bigNum: {
+    position: 'absolute',
+    bottom: 12,
+    right: 18,
+    color: 'rgba(255,255,255,0.12)',
+    fontSize: 64,
+    fontWeight: '900' as const,
+    lineHeight: 64,
+    letterSpacing: -2,
+  },
+  titleBlock: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    bottom: 16,
     flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-  },
-  titleWrap: {
-    flex: 1,
-    gap: 5,
+    alignItems: 'flex-end',
+    gap: 10,
   },
   title: {
     color: Colors.white,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '900' as const,
+    letterSpacing: -0.5,
+    lineHeight: 26,
   },
-  subtitle: {
-    color: Colors.cloud,
+  sub: {
+    color: Colors.mist,
+    fontSize: 11,
+    fontWeight: '600' as const,
+    marginTop: 4,
+    letterSpacing: 1,
+    textTransform: 'uppercase' as const,
+  },
+  arrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    backgroundColor: 'rgba(5,8,18,0.5)',
+  },
+  levelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  levelLabel: {
+    color: Colors.mist,
+    fontSize: 10,
+    fontWeight: '800' as const,
+    letterSpacing: 2,
+  },
+  levelValue: {
     fontSize: 13,
-    lineHeight: 19,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  metaBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    maxWidth: '60%',
-  },
-  metaText: {
-    color: Colors.cyan,
-    fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800' as const,
   },
 });

@@ -5,6 +5,14 @@
       "name": "Sydney Sound Map",
       "path": "expo",
       "framework": "react-native"
+    },
+    {
+      "name": "Soundscape Sydney",
+      "path": "ios-soundscape-sydney",
+      "framework": "swift",
+      "settings": {
+        "swiftSibling": false
+      }
     }
   ]
 }

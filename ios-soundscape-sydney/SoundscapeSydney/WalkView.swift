@@ -15,7 +15,7 @@ struct WalkPaneView: View {
 
     @State private var selectedId = SpotCatalog.spots.first?.id ?? ""
     @State private var showList = false
-    @State private var routeId: String?
+    @State private var openSpot: SpotRoute?
 
     var body: some View {
         ZStack {
@@ -26,7 +26,7 @@ struct WalkPaneView: View {
             } else {
                 CesiumWebView(
                     html: buildHTML(spots: SpotCatalog.spots, startId: selectedId, token: Self.cesiumToken),
-                    onOpenSpot: { id in routeId = id }
+                    onOpenSpot: { id in openSpot = SpotRoute(id: id) }
                 )
                 .ignoresSafeArea()
             }
@@ -62,10 +62,8 @@ struct WalkPaneView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .navigationDestination(item: $routeId) { id in
-            if let spot = SpotCatalog.spot(id: id) {
-                SpotDetailView(spot: spot)
-            }
+        .navigationDestination(item: $openSpot) { route in
+            SpotDetailView(spot: route.spot!)
         }
     }
 
@@ -205,7 +203,7 @@ struct WalkPaneView: View {
 <style>
   html,body,#cesiumContainer { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden; font-family:-apple-system,system-ui,Segoe UI,sans-serif; }
   .cesium-widget-credits, .cesium-viewer-bottom, .cesium-viewer-toolbar, .cesium-viewer-animationContainer, .cesium-viewer-timelineContainer, .cesium-viewer-fullscreenContainer { display:none !important; }
-  #hint { position:absolute; top:14px; left:50%; transform:translateX(-50%); background:rgba(5,8,18,0.78); color:#2FFFE0; border:1px solid rgba(47,255,224,0.35); border-radius:999px; padding:8px 14px; font-size:11px; letter-spacing:2px; font-weight:800; z-index:10; pointer-events:none; backdrop-filter: blur(10px); }
+  #hint { position:absolute; top:110px; left:50%; transform:translateX(-50%); background:rgba(5,8,18,0.78); color:#2FFFE0; border:1px solid rgba(47,255,224,0.35); border-radius:999px; padding:8px 14px; font-size:11px; letter-spacing:2px; font-weight:800; z-index:10; pointer-events:none; backdrop-filter: blur(10px); white-space:nowrap; }
   #reticle { position:absolute; top:50%; left:50%; width:14px; height:14px; margin:-7px 0 0 -7px; border:1.5px solid rgba(47,255,224,0.9); border-radius:50%; box-shadow:0 0 12px rgba(47,255,224,0.6); z-index:9; pointer-events:none; }
   #reticle:after { content:""; position:absolute; inset:5px; background:#2FFFE0; border-radius:50%; box-shadow:0 0 6px #2FFFE0; }
   .pop { position:absolute; bottom:20%; left:50%; transform:translateX(-50%); background:rgba(5,8,18,0.88); color:#fff; border:1px solid rgba(255,255,255,0.15); border-radius:18px; padding:14px 18px; font-size:14px; font-weight:700; z-index:20; display:none; backdrop-filter: blur(16px); max-width:80%; text-align:center; }

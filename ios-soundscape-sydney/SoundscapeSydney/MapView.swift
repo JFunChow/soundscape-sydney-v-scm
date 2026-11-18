@@ -39,6 +39,10 @@ struct NeonMapView: UIViewRepresentable {
         mapView.showsScale = false
         mapView.showsUserLocation = true
         mapView.delegate = context.coordinator
+        mapView.register(
+            MarkerAnnotationView.self,
+            forAnnotationViewWithReuseIdentifier: "spot-marker"
+        )
 
         var config = MKStandardMapConfiguration()
         config.pointOfInterestFilter = .excludingAll
@@ -90,15 +94,10 @@ struct NeonMapView: UIViewRepresentable {
             guard let spotAnnotation = annotation as? SpotAnnotation else { return nil }
             let identifier = "spot-marker"
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier, for: spotAnnotation)
+            view.canShowCallout = false
             if let markerView = view as? MarkerAnnotationView {
                 markerView.configure(with: spotAnnotation.spot)
-            } else {
-                let markerView = MarkerAnnotationView(annotation: spotAnnotation, reuseIdentifier: identifier)
-                markerView.configure(with: spotAnnotation.spot)
-                markerView.canShowCallout = false
-                return markerView
             }
-            view.canShowCallout = false
             return view
         }
 

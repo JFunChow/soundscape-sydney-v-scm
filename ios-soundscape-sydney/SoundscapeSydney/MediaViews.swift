@@ -21,6 +21,7 @@ struct AudioPlayerView: View {
     @State private var progress: Double = 0
     @State private var isLoading = false
     @State private var timer: Timer?
+    @State private var errorMessage: String?
 
     var body: some View {
         GlassCard {
@@ -59,6 +60,12 @@ struct AudioPlayerView: View {
                     Spacer()
                 }
 
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.rose)
+                }
+
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
                         Capsule()
@@ -92,10 +99,21 @@ struct AudioPlayerView: View {
             startProgressTimer()
             return
         }
-        guard let url = URL(string: audioUrl) else { return }
+        guard let url = URL(string: audioUrl.atsSafe()) else {
+            isLoading = false
+            return
+        }
         isLoading = true
+        errorMessage = nil
         Task {
             let localURL = await cachedAudio(from: url)
+            guard localURL.isFileURL else {
+                // Download failed — never hand AVAudioPlayer a remote URL:
+                // AudioFileOpenURL raises an uncatchable ObjC exception.
+                isLoading = false
+                errorMessage = "Recording unavailable — the source link is offline."
+                return
+            }
             do {
                 try AVAudioSession.sharedInstance().setCategory(.playback)
                 try AVAudioSession.sharedInstance().setActive(true)
@@ -107,6 +125,7 @@ struct AudioPlayerView: View {
                 startProgressTimer()
             } catch {
                 isLoading = false
+                errorMessage = "Recording unavailable — the source link is offline."
             }
         }
     }
@@ -127,16 +146,31 @@ struct AudioPlayerView: View {
 
     private func cachedAudio(from url: URL) async -> URL {
         let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        let localURL = cacheDir.appendingPathComponent(url.lastPathComponent)
+        let safeName = url.absoluteString
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+        let localURL = cacheDir.appendingPathComponent(safeName)
         if FileManager.default.fileExists(atPath: localURL.path) { return localURL }
         do {
-            let (tempURL, _) = try await URLSession.shared.download(from: url)
-            try? FileManager.default.removeItem(at: localURL)
+            let (tempURL, response) = try await URLSession.shared.download(from: url)
+            let mime = (response as? HTTPURLResponse)?.mimeType ?? ""
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            // A 200 HTML page is not an audio file (short links redirect to web pages).
+            guard (200...299).contains(status), !mime.contains("text/html") else {
+                throw URLError(.badServerResponse)
+            }
             try FileManager.default.moveItem(at: tempURL, to: localURL)
             return localURL
         } catch {
             return url
         }
+    }
+}
+
+extension String {
+    /// App Transport Security blocks plain http; upgrade to https for downloads.
+    func atsSafe() -> String {
+        self.hasPrefix("http://") ? "https://" + dropFirst(7) : self
     }
 }
 
@@ -158,6 +192,11 @@ struct VideoEmbedView: View {
 private struct YouTubeWebView: UIViewRepresentable {
     let videoID: String
 
+    /// YouTube's embed requires a valid HTTP Referer identifying the embedding
+    /// site; a null/file origin makes the player fail with error 153. Loading
+    /// the wrapper HTML with an https baseURL gives the iframe that referer.
+    static let embedOrigin = "https://soundscape-sydney.rork.app"
+
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
         webView.isOpaque = false
@@ -168,11 +207,12 @@ private struct YouTubeWebView: UIViewRepresentable {
         <meta name="viewport" content="width=device-width,initial-scale=1"/>
         <style>html,body{margin:0;padding:0;background:#050812;overflow:hidden}
         iframe{width:100%;height:100%;border:0}</style></head>
-        <body><iframe src="https://www.youtube.com/embed/\(videoID)"
+        <body><iframe src="https://www.youtube-nocookie.com/embed/\(videoID)?playsinline=1&rel=0&origin=\(Self.embedOrigin.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+        referrerpolicy="strict-origin-when-cross-origin"
         allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;webshare"
         allowfullscreen></iframe></body></html>
         """
-        webView.loadHTMLString(html, baseURL: URL(string: "https://www.youtube.com"))
+        webView.loadHTMLString(html, baseURL: URL(string: Self.embedOrigin))
         return webView
     }
 

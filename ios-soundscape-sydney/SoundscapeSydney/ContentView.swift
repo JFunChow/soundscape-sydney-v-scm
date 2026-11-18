@@ -82,8 +82,6 @@ struct ContentView: View {
         }
         .opacity(isActive ? 1 : 0)
         .allowsHitTesting(isActive)
-        // keep scroll/state alive across tab switches
-        .zIndex(isActive ? 1 : 0)
     }
 }
 
@@ -106,6 +104,7 @@ private struct PillTabBar: View {
         .clipShape(Capsule())
         .padding(.horizontal, 18)
         .padding(.bottom, 18)
+        .zIndex(10)
         .shadow(color: .black.opacity(0.5), radius: 20, y: 8)
     }
 

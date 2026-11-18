@@ -62,13 +62,13 @@ struct SavedPaneView: View {
                 .background(Theme.gold)
                 .clipShape(Circle())
             VStack(alignment: .leading, spacing: 4) {
-                Text("\(favoriteSpots.count) spots saved")
+                Text("\(favoriteSpots.count) \(favoriteSpots.count == 1 ? "spot" : "spots") saved")
                     .font(.system(size: 16, weight: .heavy))
                     .foregroundStyle(Theme.white)
                 Text(
                     favoriteSpots.isEmpty
                         ? "Tap the heart on any sound spot to save it here."
-                        : "You have \(favoriteSpots.count) sound locations saved."
+                        : "You have \(favoriteSpots.count) sound \(favoriteSpots.count == 1 ? "location" : "locations") saved."
                 )
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.cloud)

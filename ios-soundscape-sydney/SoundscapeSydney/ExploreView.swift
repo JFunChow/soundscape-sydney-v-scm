@@ -221,23 +221,26 @@ struct ExploreView: View {
     }
 
     private var layerChips: some View {
-        HStack(spacing: 8) {
-            layerChip(
-                label: "ALL", count: SpotCatalog.spots.count,
-                color: .white, isActive: selectedCategory == nil
-            ) {
-                selectedCategory = nil
-            }
-            ForEach(SoundCategory.allCases) { category in
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
                 layerChip(
-                    label: category.rawValue.uppercased(),
-                    count: SpotCatalog.spots.filter { $0.category == category }.count,
-                    color: category.color,
-                    isActive: selectedCategory == category
+                    label: "ALL", count: SpotCatalog.spots.count,
+                    color: .white, isActive: selectedCategory == nil
                 ) {
-                    selectedCategory = category
+                    selectedCategory = nil
+                }
+                ForEach(SoundCategory.allCases) { category in
+                    layerChip(
+                        label: category.rawValue.uppercased(),
+                        count: SpotCatalog.spots.filter { $0.category == category }.count,
+                        color: category.color,
+                        isActive: selectedCategory == category
+                    ) {
+                        selectedCategory = category
+                    }
                 }
             }
+            .padding(.vertical, 2)
         }
         .padding(.bottom, 32)
     }
